@@ -1,5 +1,8 @@
-#define BLACK_FIRST_NOTE 40
-#define WHITE_FIRST_NOTE 64
+#define FIRST_STRING_NOTE 74
+#define SECOND_STRING_NOTE 71
+#define THIRD_STRING_NOTE 67
+#define FORTH_STRING_NOTE 62
+#define FIFTH_STRING_NOTE 79
 
 const int selectPin[] = {15, 16, 17, 18, 19, 20};
 const int dataPin[] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14};
@@ -49,20 +52,44 @@ void checkSwitchStatus()
 int calculatePitch(int s, int d)
 {
   int pitch;
-  if (d <= 5)
+  if (s == 5)
   {
-    pitch = BLACK_FIRST_NOTE + s*5 + d;
+    pitch = 1 + d;
   }
-  else
+  if (s == 4)
   {
-    pitch = WHITE_FIRST_NOTE + s*5 + d-6;
+    pitch = FIRST_STRING_NOTE + d;
+  }
+  else if (s == 3)
+  {
+    pitch = SECOND_STRING_NOTE + d;
+  }
+  else if (s == 2)
+  {
+    pitch = THIRD_STRING_NOTE + d;
+  }
+  else if (s == 1)
+  {
+    pitch = FORTH_STRING_NOTE + d;
+  }
+  else if (s == 0 && d > 4)
+  {
+    pitch = FIFTH_STRING_NOTE + d - 5;
+  }
+  else if (s == 0 && d < 5)
+  {
+    pitch = 41 + d;
   }
   return(pitch);
 }
 
-int calculateChannel(int d)
+int calculateChannel(int s, int d)
 {
-  if (d <= 5)
+  if (s == 5)
+  {
+    return(2);
+  }
+  else if (s == 0 && d < 5)
   {
     return(2);
   }
@@ -81,9 +108,20 @@ void handleNoteOn(int s, int d)
 {
   if ((millis() - lastDebounceTime[s][d]) > debounceDelay)
   {
-    usbMIDI.sendNoteOn(calculatePitch(s, d), calculateVelocity(), calculateChannel(d));
-    keyNoteOld[s][d] = keyNote[s][d];
-    lastDebounceTime[s][d] = millis();
+    int channel = calculateChannel(s, d);
+    if (channel == 2)
+    {
+      
+      usbMIDI.sendControlChange(calculatePitch(s, d), 127, 1);
+      keyNoteOld[s][d] = keyNote[s][d];
+      lastDebounceTime[s][d] = millis();
+    }
+    else
+    {
+      usbMIDI.sendNoteOn(calculatePitch(s, d), calculateVelocity(), calculateChannel(s, d));
+      keyNoteOld[s][d] = keyNote[s][d];
+      lastDebounceTime[s][d] = millis();
+    }
   }
 }
 
@@ -91,9 +129,19 @@ void handleNoteOff(int s, int d)
 {
   if ((millis() - lastDebounceTime[s][d]) > debounceDelay)
   {
-    usbMIDI.sendNoteOff(calculatePitch(s, d), calculateVelocity(), calculateChannel(d));
-    keyNoteOld[s][d] = keyNote[s][d];
-    lastDebounceTime[s][d] = millis();
+    int channel = calculateChannel(s, d);
+    if (channel == 2)
+    {
+      usbMIDI.sendControlChange(calculatePitch(s, d), 0, 1);
+      keyNoteOld[s][d] = keyNote[s][d];
+      lastDebounceTime[s][d] = millis();
+    }
+    else
+    {
+      usbMIDI.sendNoteOff(calculatePitch(s, d), calculateVelocity(), calculateChannel(s, d));
+      keyNoteOld[s][d] = keyNote[s][d];
+      lastDebounceTime[s][d] = millis();
+    }
   }
 }
 
