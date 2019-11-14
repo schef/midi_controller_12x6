@@ -1,247 +1,308 @@
-#define FIRST_STRING_NOTE 74
-#define SECOND_STRING_NOTE 71
-#define THIRD_STRING_NOTE 67
-#define FORTH_STRING_NOTE 62
-#define FIFTH_STRING_NOTE 79
+#define STRING_0 40
+#define STRING_1 STRING_0 + 5
+#define STRING_2 STRING_1 + 5
+#define STRING_3 STRING_0 + 12 * 2
+#define STRING_4 STRING_3 + 5
+#define STRING_5 STRING_4 + 5
 
-const int selectPin[] = {15, 16, 17, 18, 19, 20};
-const int dataPin[] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14};
+const uint8_t selectPin[] = {15, 16, 17, 18, 19, 20};
+const uint8_t dataPin[] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14};
 
-int keyNote[6][12];
-int keyNoteOld[6][12];
+struct Key {
+  bool state;
+  uint8_t selectPin;
+  uint8_t dataPin;
+  uint32_t lastTimestamp;
+  bool shouldExecute;
+};
 
-long lastDebounceTime[6][12];
-long debounceDelay = 2;
+struct Key keys[sizeof(selectPin) * sizeof(dataPin)];
 
-int sensorPin = A9;
-int sensorValue = 0;
+uint8_t chord[12] = {0};
 
-#define INMIN 690
-#define INMAX 1010
-#define OUTMIN 16
-#define OUTMAX 127
-
-#define VALUE_DIFERENCE 2
-#define NUMBER_OF_SAMPLES 10
-
-void initPins()
-{
-  for (int i = 0; i < 6; i++)
-  {
+void initPins() {
+  for (uint8_t i = 0; i < sizeof(selectPin); i++) {
     pinMode(selectPin[i], OUTPUT);
   }
-  for (int i = 0; i < 12; i++)
-  {
+  for (uint8_t i = 0; i < sizeof(dataPin); i++) {
     pinMode(dataPin[i], INPUT);
   }
 }
 
-void checkSwitchStatus()
-{
-  for (int s = 0; s < 6; s++)
-  {
+void initKeys() {
+  for (uint8_t s = 0; s < sizeof(selectPin); s++) {
+    for (uint8_t d = 0; d < sizeof(dataPin); d++) {
+      struct Key &key = keys[s * sizeof(dataPin) + d];
+      key.state = false;
+      key.selectPin = s;
+      key.dataPin = d;
+      key.lastTimestamp = 0;
+      key.shouldExecute = false;
+    }
+  }
+}
+
+void checkSwitchStatus() {
+  for (uint8_t s = 0; s < sizeof(selectPin); s++) {
     digitalWrite(selectPin[s], HIGH);
-    for (int d = 0; d < 12; d++)
-    {
-      keyNote[s][d] = digitalRead(dataPin[d]);
+    for (uint8_t d = 0; d < sizeof(dataPin); d++) {
+      bool buttonState = digitalRead(dataPin[d]);
+      struct Key &key = keys[s * sizeof(dataPin) + d];
+      if (buttonState != key.state && millis() - key.lastTimestamp > 2) {
+        key.state = buttonState;
+        key.lastTimestamp = millis();
+        key.shouldExecute = true;
+        Serial.print("State change: ");
+        Serial.print(s, DEC);
+        Serial.print(":");
+        Serial.print(d, DEC);
+        Serial.println("");
+      }
     }
     digitalWrite(selectPin[s], LOW);
   }
 }
 
-int calculatePitch(int s, int d)
-{
-  int pitch;
-  if (s == 5)
-  {
-    pitch = 1 + d;
+// void handleNoteOn(uint8_t s, int d)
+// {
+//   if ((millis() - lastDebounceTime[s][d]) > debounceDelay)
+//   {
+//     int channel = calculateChannel(s, d);
+//     if (channel == 2)
+//     {
+
+//       usbMIDI.sendControlChange(calculatePitch(s, d), 127, 1);
+//       keyNoteOld[s][d] = keyNote[s][d];
+//       lastDebounceTime[s][d] = millis();
+//     }
+//     else
+//     {
+//       usbMIDI.sendNoteOn(calculatePitch(s, d), calculateVelocity(),
+//       calculateChannel(s, d)); keyNoteOld[s][d] = keyNote[s][d];
+//       lastDebounceTime[s][d] = millis();
+//     }
+//   }
+// }
+
+// void handleNoteOff(uint8_t s, int d)
+// {
+//   if ((millis() - lastDebounceTime[s][d]) > debounceDelay)
+//   {
+//     int channel = calculateChannel(s, d);
+//     if (channel == 2)
+//     {
+//       usbMIDI.sendControlChange(calculatePitch(s, d), 0, 1);
+//       keyNoteOld[s][d] = keyNote[s][d];
+//       lastDebounceTime[s][d] = millis();
+//     }
+//     else
+//     {
+//       usbMIDI.sendNoteOff(calculatePitch(s, d), calculateVelocity(),
+//       calculateChannel(s, d)); keyNoteOld[s][d] = keyNote[s][d];
+//       lastDebounceTime[s][d] = millis();
+//     }
+//   }
+// }
+
+void handleNote(uint8_t pitch, uint8_t channel, bool state) {
+  if (state) {
+    usbMIDI.sendNoteOn(pitch, state * 127, channel);
+  } else {
+    usbMIDI.sendNoteOff(pitch, state * 127, channel);
   }
-  if (s == 4)
-  {
-    pitch = FIRST_STRING_NOTE + d;
-  }
-  else if (s == 3)
-  {
-    pitch = SECOND_STRING_NOTE + d;
-  }
-  else if (s == 2)
-  {
-    pitch = THIRD_STRING_NOTE + d;
-  }
-  else if (s == 1)
-  {
-    pitch = FORTH_STRING_NOTE + d;
-  }
-  else if (s == 0 && d > 4)
-  {
-    pitch = FIFTH_STRING_NOTE + d - 5;
-  }
-  else if (s == 0 && d < 5)
-  {
-    pitch = 41 + d;
-  }
-  return(pitch);
 }
 
-int calculateChannel(int s, int d)
-{
-  if (s == 5)
-  {
-    return(2);
-  }
-  else if (s == 0 && d < 5)
-  {
-    return(2);
-  }
-  else
-  {
-    return(1);
+void allNotesOff() {
+  for (uint8_t i = 0; i < 127; i++) {
+    handleNote(i, 1, false);
   }
 }
 
-int calculateVelocity()
-{
-  return(100);
+bool isKey(struct Key &key, uint8_t select, uint8_t data) {
+  return key.selectPin == select && key.dataPin == data;
 }
 
-void handleNoteOn(int s, int d)
-{
-  if ((millis() - lastDebounceTime[s][d]) > debounceDelay)
-  {
-    int channel = calculateChannel(s, d);
-    if (channel == 2)
-    {
-      
-      usbMIDI.sendControlChange(calculatePitch(s, d), 127, 1);
-      keyNoteOld[s][d] = keyNote[s][d];
-      lastDebounceTime[s][d] = millis();
-    }
-    else
-    {
-      usbMIDI.sendNoteOn(calculatePitch(s, d), calculateVelocity(), calculateChannel(s, d));
-      keyNoteOld[s][d] = keyNote[s][d];
-      lastDebounceTime[s][d] = millis();
+void handleChord(uint8_t pitch, uint8_t channel, bool state) {
+  for (uint8_t i = 0; i < sizeof(chord); i++) {
+    if (chord[i]) {
+      handleNote(pitch + i, channel, state);
     }
   }
 }
 
-void handleNoteOff(int s, int d)
-{
-  if ((millis() - lastDebounceTime[s][d]) > debounceDelay)
-  {
-    int channel = calculateChannel(s, d);
-    if (channel == 2)
-    {
-      usbMIDI.sendControlChange(calculatePitch(s, d), 0, 1);
-      keyNoteOld[s][d] = keyNote[s][d];
-      lastDebounceTime[s][d] = millis();
-    }
-    else
-    {
-      usbMIDI.sendNoteOff(calculatePitch(s, d), calculateVelocity(), calculateChannel(s, d));
-      keyNoteOld[s][d] = keyNote[s][d];
-      lastDebounceTime[s][d] = millis();
-    }
-  }
-}
+void resposneToSwitchStatus() {
+  for (uint32_t i = 0; i < sizeof(keys) / sizeof(Key); i++) {
+    struct Key &key = keys[i];
+    if (key.shouldExecute) {
+      key.shouldExecute = false;
+      if (isKey(key, 0, 0)) {
+        handleNote(STRING_0 + 0, 1, key.state);
+      } else if (isKey(key, 0, 1)) {
+        handleNote(STRING_0 + 1, 1, key.state);
+      } else if (isKey(key, 0, 2)) {
+        handleNote(STRING_0 + 2, 1, key.state);
+      } else if (isKey(key, 0, 3)) {
+        handleNote(STRING_0 + 3, 1, key.state);
+      } else if (isKey(key, 0, 4)) {
+        handleNote(STRING_0 + 4, 1, key.state);
+      } else if (isKey(key, 0, 5)) {
+        handleNote(STRING_0 + 5, 1, key.state);
 
-int isNoteOn(int s, int d)
-{
-  if (keyNote[s][d] == 1 && keyNote[s][d] != keyNoteOld[s][d])
-  {
-    return(1);
-  }
-  else
-  {
-    return(0);
-  }
-}
+      } else if (isKey(key, 1, 0)) {
+        handleNote(STRING_1 + 0, 1, key.state);
+      } else if (isKey(key, 1, 1)) {
+        handleNote(STRING_1 + 1, 1, key.state);
+      } else if (isKey(key, 1, 2)) {
+        handleNote(STRING_1 + 2, 1, key.state);
+      } else if (isKey(key, 1, 3)) {
+        handleNote(STRING_1 + 3, 1, key.state);
+      } else if (isKey(key, 1, 4)) {
+        handleNote(STRING_1 + 4, 1, key.state);
+      } else if (isKey(key, 1, 5)) {
+        handleNote(STRING_1 + 5, 1, key.state);
 
-int isNoteOff(int s, int d)
-{
-  if (keyNote[s][d] == 0 && keyNote[s][d] != keyNoteOld[s][d])
-  {
-    return(1);
-  }
-  else
-  {
-    return(0);
-  }
-}
+      } else if (isKey(key, 2, 0)) {
+        handleNote(STRING_2 + 0, 1, key.state);
+      } else if (isKey(key, 2, 1)) {
+        handleNote(STRING_2 + 1, 1, key.state);
+      } else if (isKey(key, 2, 2)) {
+        handleNote(STRING_2 + 2, 1, key.state);
+      } else if (isKey(key, 2, 3)) {
+        handleNote(STRING_2 + 3, 1, key.state);
+      } else if (isKey(key, 2, 4)) {
+        handleNote(STRING_2 + 4, 1, key.state);
+      } else if (isKey(key, 2, 5)) {
+        handleNote(STRING_2 + 5, 1, key.state);
 
-void resposneToSwitchStatus()
-{
-  for (int s = 0; s < 6; s++)
-  {
-    for (int d = 0; d < 12; d++)
-    {
-      if (isNoteOn(s, d))
-      {
-        handleNoteOn(s, d);
+      } else if (isKey(key, 3, 0)) {
+        handleChord(STRING_3 + 0, 1, key.state);
+      } else if (isKey(key, 3, 1)) {
+        handleChord(STRING_3 + 1, 1, key.state);
+      } else if (isKey(key, 3, 2)) {
+        handleChord(STRING_3 + 2, 1, key.state);
+      } else if (isKey(key, 3, 3)) {
+        handleChord(STRING_3 + 3, 1, key.state);
+      } else if (isKey(key, 3, 4)) {
+        handleChord(STRING_3 + 4, 1, key.state);
+      } else if (isKey(key, 3, 5)) {
+        handleChord(STRING_3 + 5, 1, key.state);
+
+      } else if (isKey(key, 4, 0)) {
+        handleChord(STRING_4 + 0, 1, key.state);
+      } else if (isKey(key, 4, 1)) {
+        handleChord(STRING_4 + 1, 1, key.state);
+      } else if (isKey(key, 4, 2)) {
+        handleChord(STRING_4 + 2, 1, key.state);
+      } else if (isKey(key, 4, 3)) {
+        handleChord(STRING_4 + 3, 1, key.state);
+      } else if (isKey(key, 4, 4)) {
+        handleChord(STRING_4 + 4, 1, key.state);
+      } else if (isKey(key, 4, 5)) {
+        handleChord(STRING_4 + 5, 1, key.state);
+
+      } else if (isKey(key, 5, 0)) {
+        handleChord(STRING_5 + 0, 1, key.state);
+      } else if (isKey(key, 5, 1)) {
+        handleChord(STRING_5 + 1, 1, key.state);
+      } else if (isKey(key, 5, 2)) {
+        handleChord(STRING_5 + 2, 1, key.state);
+      } else if (isKey(key, 5, 3)) {
+        handleChord(STRING_5 + 3, 1, key.state);
+      } else if (isKey(key, 5, 4)) {
+        handleChord(STRING_5 + 4, 1, key.state);
+      } else if (isKey(key, 5, 5)) {
+        handleChord(STRING_5 + 5, 1, key.state);
+
+      } else if (isKey(key, 5, 6)) {
+        allNotesOff();
+
+      } else if (isKey(key, 5, 7)) {
+        // select M7
+        chord[0] = true;   // c
+        chord[1] = false;  // c#
+        chord[2] = false;  // d
+        chord[3] = false;  // d#
+        chord[4] = true;   // e
+        chord[5] = false;  // f
+        chord[6] = false;  // f#
+        chord[7] = true;   // g
+        chord[8] = false;  // g#
+        chord[9] = false;  // a
+        chord[10] = false; // b
+        chord[11] = true;  // h
+
+      } else if (isKey(key, 5, 8)) {
+        // select 7
+        chord[0] = true;   // c
+        chord[1] = false;  // c#
+        chord[2] = false;  // d
+        chord[3] = false;  // d#
+        chord[4] = true;   // e
+        chord[5] = false;  // f
+        chord[6] = false;  // f#
+        chord[7] = true;   // g
+        chord[8] = false;  // g#
+        chord[9] = false;  // a
+        chord[10] = true;  // b
+        chord[11] = false; // h
+
+      } else if (isKey(key, 5, 9)) {
+        // select m7
+        chord[0] = true;   // c
+        chord[1] = false;  // c#
+        chord[2] = false;  // d
+        chord[3] = true;   // d#
+        chord[4] = false;  // e
+        chord[5] = false;  // f
+        chord[6] = false;  // f#
+        chord[7] = true;   // g
+        chord[8] = false;  // g#
+        chord[9] = false;  // a
+        chord[10] = true;  // b
+        chord[11] = false; // h
+
+      } else if (isKey(key, 5, 10)) {
+        // select m7b5
+        chord[0] = true;   // c
+        chord[1] = false;  // c#
+        chord[2] = false;  // d
+        chord[3] = true;   // d#
+        chord[4] = false;  // e
+        chord[5] = false;  // f
+        chord[6] = true;   // f#
+        chord[7] = false;  // g
+        chord[8] = false;  // g#
+        chord[9] = false;  // a
+        chord[10] = true;  // b
+        chord[11] = false; // h
+
+      } else if (isKey(key, 5, 11)) {
+        // select dim7
+        chord[0] = true;   // c
+        chord[1] = false;  // c#
+        chord[2] = false;  // d
+        chord[3] = true;   // d#
+        chord[4] = false;  // e
+        chord[5] = false;  // f
+        chord[6] = true;   // f#
+        chord[7] = false;  // g
+        chord[8] = false;  // g#
+        chord[9] = true;   // a
+        chord[10] = false; // b
+        chord[11] = false; // h
       }
-      else if (isNoteOff(s, d))
-      {
-        handleNoteOff(s, d);
-      }
     }
   }
 }
 
-int resultArray[NUMBER_OF_SAMPLES] = {0};
-int result = 0;
-int oldResult = 0;
-
-float linearMapTo(float value, float inMin, float inMax, float outMin, float outMax)
-{
-  if (value > inMax) value = inMax;
-  if (value < inMin) value = inMin;
-  float result = (((value - inMin) * (outMax - outMin)) / (inMax - inMin)) + outMin;
-  if (result > outMax) result = outMax;
-  if (result < outMin) result = outMin;
-  //Serial.printf("liner: value: %d, result %d\r\n", (int)value, (int)result);
-  return(result);
-}
-
-int calcAverage(int *buffer)
-{
-  int result = 0;
-  for (int i = 0; i < NUMBER_OF_SAMPLES; i++)
-  {
-    result += buffer[i];
-  }
-  result = result / NUMBER_OF_SAMPLES;
-  return(result);
-}
-
-void setup()
-{                
-  Serial.begin(38400);
+void setup() {
+  Serial.begin(115200);
+  Serial.println("Setup");
   initPins();
+  initKeys();
 }
 
-void readAnalogValues()
-{
-  // read the value from the sensor:
-  for (int i = 0; i < NUMBER_OF_SAMPLES; i++)
-  {
-    sensorValue = analogRead(sensorPin);
-    int tempResult = linearMapTo(sensorValue, INMIN, INMAX, OUTMIN, OUTMAX);
-    //Serial.printf("value: %d, result %d\r\n", sensorValue, tempResult);
-    resultArray[i] = tempResult;
-    
-  }
-  result = calcAverage(resultArray);
-  if ((result != oldResult) && (abs(result-oldResult) > VALUE_DIFERENCE))
-  {
-    //Serial.printf("value: %d\n", result);
-    usbMIDI.sendControlChange(11, result, 1);
-    oldResult = result;
-}
-}
-
-void loop()
-{
+void loop() {
   checkSwitchStatus();
   resposneToSwitchStatus();
-  readAnalogValues();
 }
