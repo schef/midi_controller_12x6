@@ -1,7 +1,7 @@
 #define STRING_0 40
 #define STRING_1 STRING_0 + 5
 #define STRING_2 STRING_1 + 5
-#define STRING_3 STRING_0 + 12 * 2
+#define STRING_3 STRING_0 + 12
 #define STRING_4 STRING_3 + 5
 #define STRING_5 STRING_4 + 5
 
@@ -18,7 +18,10 @@ struct Key {
 
 struct Key keys[sizeof(selectPin) * sizeof(dataPin)];
 
-uint8_t chord[12] = {0};
+bool chord[25] = {0};
+bool chordState[25] = {0};
+bool midiRequests[128] = {0};
+bool midiInAction[128] = {0};
 
 void initPins() {
   for (uint8_t i = 0; i < sizeof(selectPin); i++) {
@@ -48,7 +51,7 @@ void checkSwitchStatus() {
     for (uint8_t d = 0; d < sizeof(dataPin); d++) {
       bool buttonState = digitalRead(dataPin[d]);
       struct Key &key = keys[s * sizeof(dataPin) + d];
-      if (buttonState != key.state && millis() - key.lastTimestamp > 2) {
+      if (buttonState != key.state && millis() - key.lastTimestamp > 10) {
         key.state = buttonState;
         key.lastTimestamp = millis();
         key.shouldExecute = true;
@@ -63,48 +66,12 @@ void checkSwitchStatus() {
   }
 }
 
-// void handleNoteOn(uint8_t s, int d)
-// {
-//   if ((millis() - lastDebounceTime[s][d]) > debounceDelay)
-//   {
-//     int channel = calculateChannel(s, d);
-//     if (channel == 2)
-//     {
-
-//       usbMIDI.sendControlChange(calculatePitch(s, d), 127, 1);
-//       keyNoteOld[s][d] = keyNote[s][d];
-//       lastDebounceTime[s][d] = millis();
-//     }
-//     else
-//     {
-//       usbMIDI.sendNoteOn(calculatePitch(s, d), calculateVelocity(),
-//       calculateChannel(s, d)); keyNoteOld[s][d] = keyNote[s][d];
-//       lastDebounceTime[s][d] = millis();
-//     }
-//   }
-// }
-
-// void handleNoteOff(uint8_t s, int d)
-// {
-//   if ((millis() - lastDebounceTime[s][d]) > debounceDelay)
-//   {
-//     int channel = calculateChannel(s, d);
-//     if (channel == 2)
-//     {
-//       usbMIDI.sendControlChange(calculatePitch(s, d), 0, 1);
-//       keyNoteOld[s][d] = keyNote[s][d];
-//       lastDebounceTime[s][d] = millis();
-//     }
-//     else
-//     {
-//       usbMIDI.sendNoteOff(calculatePitch(s, d), calculateVelocity(),
-//       calculateChannel(s, d)); keyNoteOld[s][d] = keyNote[s][d];
-//       lastDebounceTime[s][d] = millis();
-//     }
-//   }
-// }
-
 void handleNote(uint8_t pitch, uint8_t channel, bool state) {
+  Serial.print("midi: ");
+  Serial.print(pitch, DEC);
+  Serial.print(": ");
+  Serial.println(state, DEC);
+
   if (state) {
     usbMIDI.sendNoteOn(pitch, state * 127, channel);
   } else {
@@ -112,8 +79,16 @@ void handleNote(uint8_t pitch, uint8_t channel, bool state) {
   }
 }
 
+void requestNote(uint8_t pitch, uint8_t channel, bool state) {
+  if (state) {
+    midiRequests[pitch] = state;
+  }
+}
+
 void allNotesOff() {
-  for (uint8_t i = 0; i < 127; i++) {
+  for (uint8_t i = 0; i < 128; i++) {
+    midiRequests[i] = false;
+    midiInAction[i] = false;
     handleNote(i, 1, false);
   }
 }
@@ -122,175 +97,362 @@ bool isKey(struct Key &key, uint8_t select, uint8_t data) {
   return key.selectPin == select && key.dataPin == data;
 }
 
-void handleChord(uint8_t pitch, uint8_t channel, bool state) {
+void requestChord(uint8_t pitch, uint8_t channel, bool state) {
   for (uint8_t i = 0; i < sizeof(chord); i++) {
     if (chord[i]) {
-      handleNote(pitch + i, channel, state);
+      requestNote(pitch + i, channel, state);
     }
   }
 }
 
+uint32_t lastEmptyTimestamp = 0;
+
+bool isChordEmpty() {
+  for (uint32_t i = 0; i < sizeof(chordState); i++) {
+      if (chordState[i]) {
+        return false;
+      }
+  }
+  return true;
+}
+
+void buildChord(uint8_t pitch, bool state) {
+  
+  if (isChordEmpty() && millis() - lastEmptyTimestamp > 500 && state) {
+    lastEmptyTimestamp = millis();
+    memset(chord, 0, sizeof(chord));
+    Serial.println("Reset chord");
+  }
+
+  if (state) {
+    chord[pitch] = state;
+    Serial.print("Chord pitch: ");
+    Serial.println(pitch, DEC);
+  }
+
+  chordState[pitch] = state;
+}
+
 void resposneToSwitchStatus() {
+  memset(midiRequests, 0, sizeof(midiRequests));
   for (uint32_t i = 0; i < sizeof(keys) / sizeof(Key); i++) {
     struct Key &key = keys[i];
-    if (key.shouldExecute) {
+    if (isKey(key, 0, 0)) {
+      requestNote(STRING_0 + 0, 1, key.state);
+    } else if (isKey(key, 0, 1)) {
+      requestNote(STRING_0 + 1, 1, key.state);
+    } else if (isKey(key, 0, 2)) {
+      requestNote(STRING_0 + 2, 1, key.state);
+    } else if (isKey(key, 0, 3)) {
+      requestNote(STRING_0 + 3, 1, key.state);
+    } else if (isKey(key, 0, 4)) {
+      requestNote(STRING_0 + 4, 1, key.state);
+    } else if (isKey(key, 0, 5)) {
+      requestNote(STRING_0 + 5, 1, key.state);
+
+    } else if (isKey(key, 1, 0)) {
+      requestNote(STRING_1 + 0, 1, key.state);
+    } else if (isKey(key, 1, 1)) {
+      requestNote(STRING_1 + 1, 1, key.state);
+    } else if (isKey(key, 1, 2)) {
+      requestNote(STRING_1 + 2, 1, key.state);
+    } else if (isKey(key, 1, 3)) {
+      requestNote(STRING_1 + 3, 1, key.state);
+    } else if (isKey(key, 1, 4)) {
+      requestNote(STRING_1 + 4, 1, key.state);
+    } else if (isKey(key, 1, 5)) {
+      requestNote(STRING_1 + 5, 1, key.state);
+
+    } else if (isKey(key, 2, 0)) {
+      requestNote(STRING_2 + 0, 1, key.state);
+    } else if (isKey(key, 2, 1)) {
+      requestNote(STRING_2 + 1, 1, key.state);
+    } else if (isKey(key, 2, 2)) {
+      requestNote(STRING_2 + 2, 1, key.state);
+    } else if (isKey(key, 2, 3)) {
+      requestNote(STRING_2 + 3, 1, key.state);
+    } else if (isKey(key, 2, 4)) {
+      requestNote(STRING_2 + 4, 1, key.state);
+    } else if (isKey(key, 2, 5)) {
+      requestNote(STRING_2 + 5, 1, key.state);
+
+    } else if (isKey(key, 3, 0)) {
+      requestChord(STRING_3 + 0, 1, key.state);
+    } else if (isKey(key, 3, 1)) {
+      requestChord(STRING_3 + 1, 1, key.state);
+    } else if (isKey(key, 3, 2)) {
+      requestChord(STRING_3 + 2, 1, key.state);
+    } else if (isKey(key, 3, 3)) {
+      requestChord(STRING_3 + 3, 1, key.state);
+    } else if (isKey(key, 3, 4)) {
+      requestChord(STRING_3 + 4, 1, key.state);
+    } else if (isKey(key, 3, 5)) {
+      requestChord(STRING_3 + 5, 1, key.state);
+
+    } else if (isKey(key, 4, 0)) {
+      requestChord(STRING_4 + 0, 1, key.state);
+    } else if (isKey(key, 4, 1)) {
+      requestChord(STRING_4 + 1, 1, key.state);
+    } else if (isKey(key, 4, 2)) {
+      requestChord(STRING_4 + 2, 1, key.state);
+    } else if (isKey(key, 4, 3)) {
+      requestChord(STRING_4 + 3, 1, key.state);
+    } else if (isKey(key, 4, 4)) {
+      requestChord(STRING_4 + 4, 1, key.state);
+    } else if (isKey(key, 4, 5)) {
+      requestChord(STRING_4 + 5, 1, key.state);
+
+    } else if (isKey(key, 5, 0)) {
+      requestChord(STRING_5 + 0, 1, key.state);
+    } else if (isKey(key, 5, 1)) {
+      requestChord(STRING_5 + 1, 1, key.state);
+    } else if (isKey(key, 5, 2)) {
+      requestChord(STRING_5 + 2, 1, key.state);
+    } else if (isKey(key, 5, 3)) {
+      requestChord(STRING_5 + 3, 1, key.state);
+    } else if (isKey(key, 5, 4)) {
+      requestChord(STRING_5 + 4, 1, key.state);
+    } else if (isKey(key, 5, 5)) {
+      requestChord(STRING_5 + 5, 1, key.state);
+
+    } else if (key.shouldExecute && isKey(key, 5, 6)) {
       key.shouldExecute = false;
-      if (isKey(key, 0, 0)) {
-        handleNote(STRING_0 + 0, 1, key.state);
-      } else if (isKey(key, 0, 1)) {
-        handleNote(STRING_0 + 1, 1, key.state);
-      } else if (isKey(key, 0, 2)) {
-        handleNote(STRING_0 + 2, 1, key.state);
-      } else if (isKey(key, 0, 3)) {
-        handleNote(STRING_0 + 3, 1, key.state);
-      } else if (isKey(key, 0, 4)) {
-        handleNote(STRING_0 + 4, 1, key.state);
-      } else if (isKey(key, 0, 5)) {
-        handleNote(STRING_0 + 5, 1, key.state);
+      allNotesOff();
 
-      } else if (isKey(key, 1, 0)) {
-        handleNote(STRING_1 + 0, 1, key.state);
-      } else if (isKey(key, 1, 1)) {
-        handleNote(STRING_1 + 1, 1, key.state);
-      } else if (isKey(key, 1, 2)) {
-        handleNote(STRING_1 + 2, 1, key.state);
-      } else if (isKey(key, 1, 3)) {
-        handleNote(STRING_1 + 3, 1, key.state);
-      } else if (isKey(key, 1, 4)) {
-        handleNote(STRING_1 + 4, 1, key.state);
-      } else if (isKey(key, 1, 5)) {
-        handleNote(STRING_1 + 5, 1, key.state);
+    } else if (key.shouldExecute && isKey(key, 5, 7)) {
+      key.shouldExecute = false;
+      Serial.println("select M7");
+      chord[0] = true;   // c
+      chord[1] = false;  // c#
+      chord[2] = false;  // d
+      chord[3] = false;  // d#
+      chord[4] = true;   // e
+      chord[5] = false;  // f
+      chord[6] = false;  // f#
+      chord[7] = true;   // g
+      chord[8] = false;  // g#
+      chord[9] = false;  // a
+      chord[10] = false; // b
+      chord[11] = true;  // h
+      chord[12] = false; // c
+      chord[13] = false; // c#
+      chord[14] = false; // d
+      chord[15] = false; // d#
+      chord[16] = false; // e
+      chord[17] = false; // f
+      chord[18] = false; // f#
+      chord[19] = false; // g
+      chord[20] = false; // g#
+      chord[21] = false; // a
+      chord[22] = false; // b
+      chord[23] = false; // h
+      chord[24] = false; // c
 
-      } else if (isKey(key, 2, 0)) {
-        handleNote(STRING_2 + 0, 1, key.state);
-      } else if (isKey(key, 2, 1)) {
-        handleNote(STRING_2 + 1, 1, key.state);
-      } else if (isKey(key, 2, 2)) {
-        handleNote(STRING_2 + 2, 1, key.state);
-      } else if (isKey(key, 2, 3)) {
-        handleNote(STRING_2 + 3, 1, key.state);
-      } else if (isKey(key, 2, 4)) {
-        handleNote(STRING_2 + 4, 1, key.state);
-      } else if (isKey(key, 2, 5)) {
-        handleNote(STRING_2 + 5, 1, key.state);
+    } else if (key.shouldExecute && isKey(key, 5, 8)) {
+      key.shouldExecute = false;
+      Serial.println("select 7");
+      chord[0] = true;   // c
+      chord[1] = false;  // c#
+      chord[2] = false;  // d
+      chord[3] = false;  // d#
+      chord[4] = true;   // e
+      chord[5] = false;  // f
+      chord[6] = false;  // f#
+      chord[7] = true;   // g
+      chord[8] = false;  // g#
+      chord[9] = false;  // a
+      chord[10] = true;  // b
+      chord[11] = false; // h
+      chord[12] = false; // c
+      chord[13] = false; // c#
+      chord[14] = false; // d
+      chord[15] = false; // d#
+      chord[16] = false; // e
+      chord[17] = false; // f
+      chord[18] = false; // f#
+      chord[19] = false; // g
+      chord[20] = false; // g#
+      chord[21] = false; // a
+      chord[22] = false; // b
+      chord[23] = false; // h
+      chord[24] = false; // c
 
-      } else if (isKey(key, 3, 0)) {
-        handleChord(STRING_3 + 0, 1, key.state);
-      } else if (isKey(key, 3, 1)) {
-        handleChord(STRING_3 + 1, 1, key.state);
-      } else if (isKey(key, 3, 2)) {
-        handleChord(STRING_3 + 2, 1, key.state);
-      } else if (isKey(key, 3, 3)) {
-        handleChord(STRING_3 + 3, 1, key.state);
-      } else if (isKey(key, 3, 4)) {
-        handleChord(STRING_3 + 4, 1, key.state);
-      } else if (isKey(key, 3, 5)) {
-        handleChord(STRING_3 + 5, 1, key.state);
+    } else if (key.shouldExecute && isKey(key, 5, 9)) {
+      key.shouldExecute = false;
+      Serial.println("select m7");
+      chord[0] = true;   // c
+      chord[1] = false;  // c#
+      chord[2] = false;  // d
+      chord[3] = true;   // d#
+      chord[4] = false;  // e
+      chord[5] = false;  // f
+      chord[6] = false;  // f#
+      chord[7] = true;   // g
+      chord[8] = false;  // g#
+      chord[9] = false;  // a
+      chord[10] = true;  // b
+      chord[11] = false; // h
+      chord[12] = false; // c
+      chord[13] = false; // c#
+      chord[14] = false; // d
+      chord[15] = false; // d#
+      chord[16] = false; // e
+      chord[17] = false; // f
+      chord[18] = false; // f#
+      chord[19] = false; // g
+      chord[20] = false; // g#
+      chord[21] = false; // a
+      chord[22] = false; // b
+      chord[23] = false; // h
+      chord[24] = false; // c
 
-      } else if (isKey(key, 4, 0)) {
-        handleChord(STRING_4 + 0, 1, key.state);
-      } else if (isKey(key, 4, 1)) {
-        handleChord(STRING_4 + 1, 1, key.state);
-      } else if (isKey(key, 4, 2)) {
-        handleChord(STRING_4 + 2, 1, key.state);
-      } else if (isKey(key, 4, 3)) {
-        handleChord(STRING_4 + 3, 1, key.state);
-      } else if (isKey(key, 4, 4)) {
-        handleChord(STRING_4 + 4, 1, key.state);
-      } else if (isKey(key, 4, 5)) {
-        handleChord(STRING_4 + 5, 1, key.state);
+    } else if (key.shouldExecute && isKey(key, 5, 10)) {
+      key.shouldExecute = false;
+      Serial.println("select m7b5");
+      chord[0] = true;   // c
+      chord[1] = false;  // c#
+      chord[2] = false;  // d
+      chord[3] = true;   // d#
+      chord[4] = false;  // e
+      chord[5] = false;  // f
+      chord[6] = true;   // f#
+      chord[7] = false;  // g
+      chord[8] = false;  // g#
+      chord[9] = false;  // a
+      chord[10] = true;  // b
+      chord[11] = false; // h
+      chord[12] = false; // c
+      chord[13] = false; // c#
+      chord[14] = false; // d
+      chord[15] = false; // d#
+      chord[16] = false; // e
+      chord[17] = false; // f
+      chord[18] = false; // f#
+      chord[19] = false; // g
+      chord[20] = false; // g#
+      chord[21] = false; // a
+      chord[22] = false; // b
+      chord[23] = false; // h
+      chord[24] = false; // c
 
-      } else if (isKey(key, 5, 0)) {
-        handleChord(STRING_5 + 0, 1, key.state);
-      } else if (isKey(key, 5, 1)) {
-        handleChord(STRING_5 + 1, 1, key.state);
-      } else if (isKey(key, 5, 2)) {
-        handleChord(STRING_5 + 2, 1, key.state);
-      } else if (isKey(key, 5, 3)) {
-        handleChord(STRING_5 + 3, 1, key.state);
-      } else if (isKey(key, 5, 4)) {
-        handleChord(STRING_5 + 4, 1, key.state);
-      } else if (isKey(key, 5, 5)) {
-        handleChord(STRING_5 + 5, 1, key.state);
+    } else if (key.shouldExecute && isKey(key, 5, 11)) {
+      key.shouldExecute = false;
+      Serial.println("select dim7");
+      chord[0] = true;   // c
+      chord[1] = false;  // c#
+      chord[2] = false;  // d
+      chord[3] = true;   // d#
+      chord[4] = false;  // e
+      chord[5] = false;  // f
+      chord[6] = true;   // f#
+      chord[7] = false;  // g
+      chord[8] = false;  // g#
+      chord[9] = true;   // a
+      chord[10] = false; // b
+      chord[11] = false; // h
+      chord[12] = false; // c
+      chord[13] = false; // c#
+      chord[14] = false; // d
+      chord[15] = false; // d#
+      chord[16] = false; // e
+      chord[17] = false; // f
+      chord[18] = false; // f#
+      chord[19] = false; // g
+      chord[20] = false; // g#
+      chord[21] = false; // a
+      chord[22] = false; // b
+      chord[23] = false; // h
+      chord[24] = false; // c
 
-      } else if (isKey(key, 5, 6)) {
-        allNotesOff();
+    } else if (key.shouldExecute && isKey(key, 0, 7)) {
+      key.shouldExecute = false;
+      buildChord(0, key.state);
+    } else if (key.shouldExecute && isKey(key, 0, 8)) {
+      key.shouldExecute = false;
+      buildChord(1, key.state);
+    } else if (key.shouldExecute && isKey(key, 0, 9)) {
+      key.shouldExecute = false;
+      buildChord(2, key.state);
+    } else if (key.shouldExecute && isKey(key, 0, 10)) {
+      key.shouldExecute = false;
+      buildChord(3, key.state);
+    } else if (key.shouldExecute && isKey(key, 0, 11)) {
+      key.shouldExecute = false;
+      buildChord(4, key.state);
 
-      } else if (isKey(key, 5, 7)) {
-        // select M7
-        chord[0] = true;   // c
-        chord[1] = false;  // c#
-        chord[2] = false;  // d
-        chord[3] = false;  // d#
-        chord[4] = true;   // e
-        chord[5] = false;  // f
-        chord[6] = false;  // f#
-        chord[7] = true;   // g
-        chord[8] = false;  // g#
-        chord[9] = false;  // a
-        chord[10] = false; // b
-        chord[11] = true;  // h
+    } else if (key.shouldExecute && isKey(key, 1, 7)) {
+      key.shouldExecute = false;
+      buildChord(5, key.state);
+    } else if (key.shouldExecute && isKey(key, 1, 8)) {
+      key.shouldExecute = false;
+      buildChord(6, key.state);
+    } else if (key.shouldExecute && isKey(key, 1, 9)) {
+      key.shouldExecute = false;
+      buildChord(7, key.state);
+    } else if (key.shouldExecute && isKey(key, 1, 10)) {
+      key.shouldExecute = false;
+      buildChord(8, key.state);
+    } else if (key.shouldExecute && isKey(key, 1, 11)) {
+      key.shouldExecute = false;
+      buildChord(9, key.state);
 
-      } else if (isKey(key, 5, 8)) {
-        // select 7
-        chord[0] = true;   // c
-        chord[1] = false;  // c#
-        chord[2] = false;  // d
-        chord[3] = false;  // d#
-        chord[4] = true;   // e
-        chord[5] = false;  // f
-        chord[6] = false;  // f#
-        chord[7] = true;   // g
-        chord[8] = false;  // g#
-        chord[9] = false;  // a
-        chord[10] = true;  // b
-        chord[11] = false; // h
+    } else if (key.shouldExecute && isKey(key, 2, 7)) {
+      key.shouldExecute = false;
+      buildChord(10, key.state);
+    } else if (key.shouldExecute && isKey(key, 2, 8)) {
+      key.shouldExecute = false;
+      buildChord(11, key.state);
+    } else if (key.shouldExecute && isKey(key, 2, 9)) {
+      key.shouldExecute = false;
+      buildChord(12, key.state);
+    } else if (key.shouldExecute && isKey(key, 2, 10)) {
+      key.shouldExecute = false;
+      buildChord(13, key.state);
+    } else if (key.shouldExecute && isKey(key, 2, 11)) {
+      key.shouldExecute = false;
+      buildChord(14, key.state);
 
-      } else if (isKey(key, 5, 9)) {
-        // select m7
-        chord[0] = true;   // c
-        chord[1] = false;  // c#
-        chord[2] = false;  // d
-        chord[3] = true;   // d#
-        chord[4] = false;  // e
-        chord[5] = false;  // f
-        chord[6] = false;  // f#
-        chord[7] = true;   // g
-        chord[8] = false;  // g#
-        chord[9] = false;  // a
-        chord[10] = true;  // b
-        chord[11] = false; // h
+    } else if (key.shouldExecute && isKey(key, 3, 7)) {
+      key.shouldExecute = false;
+      buildChord(15, key.state);
+    } else if (key.shouldExecute && isKey(key, 3, 8)) {
+      key.shouldExecute = false;
+      buildChord(16, key.state);
+    } else if (key.shouldExecute && isKey(key, 3, 9)) {
+      key.shouldExecute = false;
+      buildChord(17, key.state);
+    } else if (key.shouldExecute && isKey(key, 3, 10)) {
+      key.shouldExecute = false;
+      buildChord(18, key.state);
+    } else if (key.shouldExecute && isKey(key, 3, 11)) {
+      key.shouldExecute = false;
+      buildChord(19, key.state);
 
-      } else if (isKey(key, 5, 10)) {
-        // select m7b5
-        chord[0] = true;   // c
-        chord[1] = false;  // c#
-        chord[2] = false;  // d
-        chord[3] = true;   // d#
-        chord[4] = false;  // e
-        chord[5] = false;  // f
-        chord[6] = true;   // f#
-        chord[7] = false;  // g
-        chord[8] = false;  // g#
-        chord[9] = false;  // a
-        chord[10] = true;  // b
-        chord[11] = false; // h
+    } else if (key.shouldExecute && isKey(key, 4, 7)) {
+      key.shouldExecute = false;
+      buildChord(20, key.state);
+    } else if (key.shouldExecute && isKey(key, 4, 8)) {
+      key.shouldExecute = false;
+      buildChord(21, key.state);
+    } else if (key.shouldExecute && isKey(key, 4, 9)) {
+      key.shouldExecute = false;
+      buildChord(22, key.state);
+    } else if (key.shouldExecute && isKey(key, 4, 10)) {
+      key.shouldExecute = false;
+      buildChord(23, key.state);
+    } else if (key.shouldExecute && isKey(key, 4, 11)) {
+      key.shouldExecute = false;
+      buildChord(24, key.state);
+    }
 
-      } else if (isKey(key, 5, 11)) {
-        // select dim7
-        chord[0] = true;   // c
-        chord[1] = false;  // c#
-        chord[2] = false;  // d
-        chord[3] = true;   // d#
-        chord[4] = false;  // e
-        chord[5] = false;  // f
-        chord[6] = true;   // f#
-        chord[7] = false;  // g
-        chord[8] = false;  // g#
-        chord[9] = true;   // a
-        chord[10] = false; // b
-        chord[11] = false; // h
-      }
+  }
+}
+
+void handleMidi() {
+  for (uint8_t i = 0; i < 128; i++) {
+    if (midiRequests[i] != midiInAction[i]) {
+      midiInAction[i] = midiRequests[i];
+      handleNote(i, 1, midiInAction[i]);
     }
   }
 }
@@ -305,4 +467,5 @@ void setup() {
 void loop() {
   checkSwitchStatus();
   resposneToSwitchStatus();
+  handleMidi();
 }
