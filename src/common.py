@@ -35,7 +35,7 @@ def create_analog_input(pin):
     return ADC(pin)
 
 
-def test_buttons():
+def test_peripherals():
     select = []
     data = []
     saved_state = {}
@@ -48,6 +48,16 @@ def test_buttons():
     for x, s in enumerate(select):
         for y, d in enumerate(data):
             saved_state[(x, y)] = 0
+    pot_left = create_analog_input(0)
+    pot_right = create_analog_input(2)
+    pot_left_saved_state = pot_left.read_u16()
+    pot_right_saved_state = pot_right.read_u16()
+    pot_left_min = pot_left_saved_state
+    pot_left_max = pot_left_saved_state
+    pot_right_min = pot_right_saved_state
+    pot_right_max = pot_right_saved_state
+    print("pot changed[L] = %d <- %d -< %d" % (pot_left_min, pot_left_saved_state, pot_left_max))
+    print("pot changed[R] = %d <- %d -< %d" % (pot_right_min, pot_right_saved_state, pot_right_max))
 
     while True:
         for x, s in enumerate(select):
@@ -58,3 +68,33 @@ def test_buttons():
                     print("state changed[%d:%d] = %d" % (x, y, state))
                     saved_state[(x,y)] = state
             s.off()
+
+        pot_left_state = pot_left.read_u16()
+        if abs (pot_left_state - pot_left_saved_state) >= 10:
+            pot_left_saved_state = pot_left_state
+            if pot_left_saved_state < pot_left_min:
+                pot_left_min = pot_left_saved_state
+            if pot_left_saved_state > pot_left_max:
+                pot_left_max = pot_left_saved_state
+            print("pot changed[L] = %d <- %d -< %d" % (pot_left_min, pot_left_saved_state, pot_left_max))
+        #1/5  144 <- 800 -< 1104
+        #2/5
+        #3/5 1824 <- 1840 -< 1920
+        #4/5
+        #5/5
+        #min max 
+
+        pot_right_state = pot_right.read_u16()
+        if abs(pot_right_state - pot_right_saved_state) >= 10:
+            pot_right_saved_state = pot_right_state
+            if pot_right_saved_state < pot_right_min:
+                pot_right_min = pot_right_saved_state
+            if pot_right_saved_state > pot_right_max:
+                pot_right_max = pot_right_saved_state
+            print("pot changed[R] = %d <- %d -< %d" % (pot_right_min, pot_right_saved_state, pot_right_max))
+        #1/5 0 <- 384 -< 544
+        #2/5
+        #3/5 2064 <- 2080 -< 2144
+        #4/5
+        #5/5
+        #min max 
