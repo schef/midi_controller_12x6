@@ -7,12 +7,15 @@ from subprocess import Popen
 from time import time, sleep
 import typer
 import glob
+from getpass import getpass
 
 
 options = {
-    "DEVICE_PATH": "/dev/ttyACM0",
+    "DEVICE_SERIAL": "/dev/ttyACM0",
     "BUFFER_SIZE": 512,
     "VERBOSE": False,
+    "MOUNT_DEVICE": "/dev/sdc1",
+    "MOUNT_PATH": "/mnt/usb",
 }
 
 
@@ -29,6 +32,16 @@ class Base:
     # End colored text
     END = '\033[0m'
     NC = '\x1b[0m'  # No Color
+
+
+root_password = ""
+
+
+def get_root_password():
+    global root_password
+    if not root_password:
+        root_password = getpass("Enter [sudo] password: ")
+    return root_password
 
 
 def run_bash_cmd(cmd, echo=False, interaction={}, return_lines=True, return_code=False, cr_as_newline=False):
@@ -83,7 +96,7 @@ def run_bash_cmd(cmd, echo=False, interaction={}, return_lines=True, return_code
 
 
 def get_base_command():
-    return "rshell -p %s --buffer-size %d" % (options["DEVICE_PATH"], options["BUFFER_SIZE"])
+    return "rshell -p %s --buffer-size %d" % (options["DEVICE_SERIAL"], options["BUFFER_SIZE"])
 
 
 app = typer.Typer(help="Awesome CLI micropython.")
@@ -92,6 +105,12 @@ app = typer.Typer(help="Awesome CLI micropython.")
 @app.command()
 def repl():
     cmd = "%s repl" % (get_base_command())
+    os.system(cmd)
+
+
+@app.command()
+def repl_circuitpython():
+    cmd = "tio %s" % (options["DEVICE_SERIAL"])
     os.system(cmd)
 
 
@@ -120,13 +139,34 @@ def flash_force():
             print("%sERROR:%s while flashing" % (Base.WARNING, Base.END))
 
 
+@app.command()
+def flash_circuitpython():
+    files = glob.glob("./src/*.py")
+    interaction = {"[sudo]": get_root_password()}
+    cmd = "sudo mount %s %s" % (options["MOUNT_DEVICE"], options["MOUNT_PATH"])
+    ret = run_bash_cmd(cmd, interaction=interaction, return_code=True, return_lines=False)
+    if ret != 0:
+        print("Something went wrong, exiting!")
+        sys.exit(1)
+    cmd = "sudo cp %s %s" % (" ".join(files), options["MOUNT_PATH"])
+    ret = run_bash_cmd(cmd, interaction=interaction, return_code=True, return_lines=False)
+    if ret != 0:
+        print("Something went wrong, exiting!")
+        sys.exit(1)
+    cmd = "sudo umount %s" % (options["MOUNT_PATH"])
+    ret = run_bash_cmd(cmd, interaction=interaction, return_code=True, return_lines=False)
+    if ret != 0:
+        print("Something went wrong, exiting!")
+        sys.exit(1)
+
+
 @app.callback()
 def main(verbose: bool = True, device_path: str = ""):
     global options
     if verbose:
         options["VERBOSE"] = verbose
     if device_path:
-        options["DEVICE_PATH"] = device_path
+        options["DEVICE_SERIAL"] = device_path
 
 
 if __name__ == "__main__":

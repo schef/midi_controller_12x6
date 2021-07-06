@@ -1,16 +1,19 @@
-from machine import Pin, ADC
-from utime import sleep
-from time import ticks_ms
+import digitalio
+import analogio
+from board import *
+import time
+import usb_midi
 
-LED_PIN = 25
-BUTTON_SELECT = [16, 17, 18, 19, 20, 21]
-BUTTON_DATA = [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4]
+LED_PIN = GP25
+BUTTON_SELECT = [GP16, GP17, GP18, GP19, GP20, GP21]
+BUTTON_DATA = [GP15, GP14, GP13, GP12, GP11,
+               GP10, GP9, GP8, GP7, GP6, GP5, GP4]
 POT_MEASURE_COUNTS = 100
-POTS = [0, 1]
+POTS = [A0, A1]
 
 
 def get_millis():
-    return ticks_ms()
+    return int(time.monotonic_ns() / 1000 / 1000)
 
 
 def millis_passed(timestamp):
@@ -18,20 +21,21 @@ def millis_passed(timestamp):
 
 
 def create_output(pin):
-    return Pin(pin, Pin.OUT)
+    gpio_out = digitalio.DigitalInOut(pin)
+    gpio_out.direction = digitalio.Direction.OUTPUT
+    return gpio_out
 
 
 def create_input(pin):
-    return Pin(pin, Pin.IN, Pin.PULL_DOWN)
+    gpio_in = digitalio.DigitalInOut(pin)
+    gpio_in.direction = digitalio.Direction.INPUT
+    gpio_in.pull = digitalio.Pull.DOWN
+    return gpio_in
 
 
 def create_analog_input(pin):
-    return ADC(pin)
-
-
-def get_pot_mean(pot, counts):
-    measures = [pot.read_u16() for i in range(counts)]
-    return int(sum(measures)/counts)
+    analog_in = analogio.AnalogIn(pin)
+    return analog_in
 
 
 def remap(x, in_min, in_max, out_min, out_max):
@@ -42,13 +46,22 @@ def remap_pot(x):
     return remap(x, 0, 65535, 0, 127)
 
 
+def get_pot_mean(pot, counts):
+    measures = [remap_pot(pot.value) for i in range(counts)]
+    measures.sort()
+    for i in range(counts/4):
+        measures.pop(0)
+        measures.pop(-1)
+    return int(sum(measures)/len(measures))
+
+
 def test_peripherals():
     buttons_select = []
     buttons_data = []
     buttons_state = {}
     for pin in BUTTON_SELECT:
         buttons_select.append(create_output(pin))
-        buttons_select[-1].off()
+        buttons_select[-1].value = False
     for pin in BUTTON_DATA:
         buttons_data.append(create_input(pin))
     for select_index, select in enumerate(buttons_select):
@@ -64,18 +77,22 @@ def test_peripherals():
 
     while True:
         for select_index, select in enumerate(buttons_select):
-            select.on()
+            select.value = True
             for data_index, data in enumerate(buttons_data):
-                state = data.value()
+                state = data.value
                 if state != buttons_state[(select_index, data_index)]:
                     print("button changed[%d:%d] = %d" %
                           (select_index, data_index, state))
                     buttons_state[(select_index, data_index)] = state
-            select.off()
+            select.value = False
 
         for pot_index, pot in enumerate(pots):
-            state = remap_pot(get_pot_mean(pot, POT_MEASURE_COUNTS))
+            state = get_pot_mean(pot, POT_MEASURE_COUNTS)
             if abs(state - pots_state[pot_index]) >= 1:
                 pots_state[pot_index] = state
                 print("pot changed[%d] = %d" %
                       (pot_index, pots_state[pot_index]))
+
+
+def send_usb_midi_message(data):
+    usb_midi.ports[1].write(bytearray(data))
