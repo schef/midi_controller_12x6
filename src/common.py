@@ -5,14 +5,8 @@ from time import ticks_ms
 LED_PIN = 25
 BUTTON_SELECT = [16, 17, 18, 19, 20, 21]
 BUTTON_DATA = [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4]
-ANALOG_LEFT_PIN = 0
-ANALOG_RIGHT_PIN = 0
-
-A_LEFT_MIN = 10674
-A_LEFT_MAX = 53212
-
-A_RIGHT_MIN = 176
-A_RIGHT_MAX = 1280
+POT_MEASURE_COUNTS = 100
+POTS = [0, 1]
 
 
 def get_millis():
@@ -35,66 +29,53 @@ def create_analog_input(pin):
     return ADC(pin)
 
 
+def get_pot_mean(pot, counts):
+    measures = [pot.read_u16() for i in range(counts)]
+    return int(sum(measures)/counts)
+
+
+def remap(x, in_min, in_max, out_min, out_max):
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+
+
+def remap_pot(x):
+    return remap(x, 0, 65535, 0, 127)
+
+
 def test_peripherals():
-    select = []
-    data = []
-    saved_state = {}
+    buttons_select = []
+    buttons_data = []
+    buttons_state = {}
     for pin in BUTTON_SELECT:
-        select.append(create_output(pin))
+        buttons_select.append(create_output(pin))
+        buttons_select[-1].off()
     for pin in BUTTON_DATA:
-        data.append(create_input(pin))
-    for s in select:
-        s.off()
-    for x, s in enumerate(select):
-        for y, d in enumerate(data):
-            saved_state[(x, y)] = 0
-    pot_left = create_analog_input(0)
-    pot_right = create_analog_input(2)
-    pot_left_saved_state = pot_left.read_u16()
-    pot_right_saved_state = pot_right.read_u16()
-    pot_left_min = pot_left_saved_state
-    pot_left_max = pot_left_saved_state
-    pot_right_min = pot_right_saved_state
-    pot_right_max = pot_right_saved_state
-    print("pot changed[L] = %d <- %d -< %d" % (pot_left_min, pot_left_saved_state, pot_left_max))
-    print("pot changed[R] = %d <- %d -< %d" % (pot_right_min, pot_right_saved_state, pot_right_max))
+        buttons_data.append(create_input(pin))
+    for select_index, select in enumerate(buttons_select):
+        for data_index, data in enumerate(buttons_data):
+            buttons_state[(select_index, data_index)] = -1
+
+    pots = []
+    pots_state = {}
+    for pin in POTS:
+        pots.append(create_analog_input(pin))
+    for pot_index, pot in enumerate(pots):
+        pots_state[pot_index] = -1
 
     while True:
-        for x, s in enumerate(select):
-            s.on()
-            for y, d in enumerate(data):
-                state = d.value()
-                if state != saved_state[(x, y)]:
-                    print("state changed[%d:%d] = %d" % (x, y, state))
-                    saved_state[(x,y)] = state
-            s.off()
+        for select_index, select in enumerate(buttons_select):
+            select.on()
+            for data_index, data in enumerate(buttons_data):
+                state = data.value()
+                if state != buttons_state[(select_index, data_index)]:
+                    print("button changed[%d:%d] = %d" %
+                          (select_index, data_index, state))
+                    buttons_state[(select_index, data_index)] = state
+            select.off()
 
-        pot_left_state = pot_left.read_u16()
-        if abs (pot_left_state - pot_left_saved_state) >= 10:
-            pot_left_saved_state = pot_left_state
-            if pot_left_saved_state < pot_left_min:
-                pot_left_min = pot_left_saved_state
-            if pot_left_saved_state > pot_left_max:
-                pot_left_max = pot_left_saved_state
-            print("pot changed[L] = %d <- %d -< %d" % (pot_left_min, pot_left_saved_state, pot_left_max))
-        #1/5  144 <- 800 -< 1104
-        #2/5
-        #3/5 1824 <- 1840 -< 1920
-        #4/5
-        #5/5
-        #min max 
-
-        pot_right_state = pot_right.read_u16()
-        if abs(pot_right_state - pot_right_saved_state) >= 10:
-            pot_right_saved_state = pot_right_state
-            if pot_right_saved_state < pot_right_min:
-                pot_right_min = pot_right_saved_state
-            if pot_right_saved_state > pot_right_max:
-                pot_right_max = pot_right_saved_state
-            print("pot changed[R] = %d <- %d -< %d" % (pot_right_min, pot_right_saved_state, pot_right_max))
-        #1/5 0 <- 384 -< 544
-        #2/5
-        #3/5 2064 <- 2080 -< 2144
-        #4/5
-        #5/5
-        #min max 
+        for pot_index, pot in enumerate(pots):
+            state = remap_pot(get_pot_mean(pot, POT_MEASURE_COUNTS))
+            if abs(state - pots_state[pot_index]) >= 1:
+                pots_state[pot_index] = state
+                print("pot changed[%d] = %d" %
+                      (pot_index, pots_state[pot_index]))
