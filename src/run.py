@@ -1,15 +1,15 @@
-import common
 import peripherals
 import keyboard
-import time
 
-def run():
+def init():
     peripherals.init()
     keyboard.init()
+
+def loop():
     while True:
         peripherals.loop()
         keyboard.loop()
-        time.sleep(1)
-
-if __name__ == "__main__":
-    run()
+        
+def test():
+    init()
+    loop()

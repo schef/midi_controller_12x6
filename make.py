@@ -161,12 +161,14 @@ def flash_circuitpython():
 
 
 @app.callback()
-def main(verbose: bool = True, device_path: str = ""):
+def main(verbose: bool = True, device_path: str = "", mount_device: str = ""):
     global options
     if verbose:
         options["VERBOSE"] = verbose
     if device_path:
         options["DEVICE_SERIAL"] = device_path
+    if mount_device:
+        options["MOUNT_DEVICE"] = mount_device
 
 
 if __name__ == "__main__":
