@@ -3,6 +3,7 @@ import analogio
 from board import *
 import time
 import usb_midi
+import busio
 
 LED_PIN = GP25
 BUTTON_SELECT = [GP16, GP17, GP18, GP19, GP20, GP21]
@@ -11,6 +12,7 @@ BUTTON_DATA = [GP15, GP14, GP13, GP12, GP11,
 POT_MEASURE_COUNTS = 100
 POTS = [A0, A1]
 
+uart = busio.UART(GP0, GP1, baudrate=31250)
 
 def get_millis():
     return int(time.monotonic_ns() / 1000 / 1000)
@@ -49,10 +51,10 @@ def remap_pot(x):
 def get_pot_mean(pot, counts):
     measures = [remap_pot(pot.value) for i in range(counts)]
     measures.sort()
-    for i in range(counts/4):
+    for i in range(counts / 4):
         measures.pop(0)
         measures.pop(-1)
-    return int(sum(measures)/len(measures))
+    return int(sum(measures) / len(measures))
 
 
 def test_peripherals():
@@ -96,3 +98,7 @@ def test_peripherals():
 
 def send_usb_midi_message(data):
     usb_midi.ports[1].write(bytearray(data))
+
+
+def send_raw_midi_message(data):
+    uart.write(bytearray(data))

@@ -44,7 +44,7 @@ def on_pot_change(index, state):
 
 def init():
     peripherals.register_on_button_change_cb(on_button_change)
-    peripherals.register_on_pot_change_cb(on_pot_change)
+    #peripherals.register_on_pot_change_cb(on_pot_change)
 
 
 def loop():
