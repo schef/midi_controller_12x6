@@ -1,5 +1,8 @@
 import peripherals
 import midi_player
+import common
+
+CHANNEL = 1
 
 
 def get_button_midi_num(select_index, data_index):
@@ -12,39 +15,38 @@ def get_button_midi_num(select_index, data_index):
         midi_index = 65 - 7 + select_index * 5 + data_index * 1
     return midi_index
 
-last_state = 0
+
 def get_pot_midi_num(pot_index, state):
-    global last_state
     if pot_index == 0:
-        return 1, state
-        #new_state = int(state/42)
-        #if last_state != new_state:
-        #    last_state = new_state
-        #    return 91, new_state
-        #else:
-        #    return -1, 0
+        return 7, int(state / 8)
     elif pot_index == 1:
-        return 11, state
+        return 70, int(state / 4)
+    return -1
 
 
 def on_button_change(select_index, data_index, state):
     midi_index = get_button_midi_num(select_index, data_index)
     if midi_index != -1:
         if state:
-            midi_player.note_on(1, midi_index, 100)
+            midi_player.note_on(CHANNEL, midi_index, 100)
         else:
-            midi_player.note_off(1, midi_index)
+            midi_player.note_off(CHANNEL, midi_index)
+    else:
+        if select_index == 5 and data_index == 5 and state:
+            midi_player.set_usb_mode(True)
+        if select_index == 5 and data_index == 6 and state:
+            midi_player.set_raw_mode(True)
 
 
 def on_pot_change(index, state):
     cc, new_state = get_pot_midi_num(index, state)
     if cc != -1:
-        midi_player.cc_message(1, cc, new_state)
+        midi_player.cc_message(CHANNEL, cc, new_state)
 
 
 def init():
     peripherals.register_on_button_change_cb(on_button_change)
-    #peripherals.register_on_pot_change_cb(on_pot_change)
+    peripherals.register_on_pot_change_cb(on_pot_change)
 
 
 def loop():

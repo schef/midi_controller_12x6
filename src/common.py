@@ -14,6 +14,7 @@ POTS = [A0, A1]
 
 uart = busio.UART(GP0, GP1, baudrate=31250)
 
+
 def get_millis():
     return int(time.monotonic_ns() / 1000 / 1000)
 

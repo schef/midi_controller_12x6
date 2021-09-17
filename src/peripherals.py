@@ -9,21 +9,20 @@ pots_state = {}
 on_button_change_cb = None
 on_pot_change_cb = None
 
+
 class Pot:
     def __init__(self):
         self.state = -1
-        self.last_pot_state = [0 for i in range(10)]
-    
+
     def get_state(self):
         return self.state
-    
+
     def set_state(self, state):
-        self.state = state
-        self.last_pot_state.pop(0)
-        self.last_pot_state.append(state)
-        
+        self.state = int(state)
+
     def is_new(self, state):
-        return state != self.set_state and state not in self.last_pot_state
+        state = int(state)
+        return state != self.state and abs(abs(state) - abs(self.state)) > 2
 
 
 def init():
@@ -60,11 +59,10 @@ def loop():
 
     for pot_index, pot in enumerate(pots):
         p = pots_state[pot_index]
-        state = common.get_pot_mean(pot, common.POT_MEASURE_COUNTS)
+        state = common.remap_pot(pot.value)
         if p.is_new(state):
             p.set_state(state)
-            print("pot changed[%d] = %d" %
-                  (pot_index, p.get_state()))
+            print("pot changed[%d] = %d" % (pot_index, p.get_state()))
             if on_pot_change_cb:
                 on_pot_change_cb(pot_index, p.get_state())
 
