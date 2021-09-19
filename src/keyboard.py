@@ -18,9 +18,9 @@ def get_button_midi_num(select_index, data_index):
 
 def get_pot_midi_num(pot_index, state):
     if pot_index == 0:
-        return 7, int(state / 8)
+        return 1, state
     elif pot_index == 1:
-        return 70, int(state / 4)
+        return 71, state
     return -1
 
 
@@ -31,11 +31,6 @@ def on_button_change(select_index, data_index, state):
             midi_player.note_on(CHANNEL, midi_index, 100)
         else:
             midi_player.note_off(CHANNEL, midi_index)
-    else:
-        if select_index == 5 and data_index == 5 and state:
-            midi_player.set_usb_mode(True)
-        if select_index == 5 and data_index == 6 and state:
-            midi_player.set_raw_mode(True)
 
 
 def on_pot_change(index, state):
