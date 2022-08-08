@@ -9,6 +9,7 @@ HAMMOND_LESLIE_SPEED_CC = 1
 HAMMOND_LESLIE_BREAK_CC = 93
 
 program_change_index = 0
+break_state = False
 
 
 def get_button_midi_num(select_index, data_index):
@@ -43,12 +44,19 @@ def on_button_change(select_index, data_index, state):
 
 
 def on_pot_change(index, state):
+    global break_state
     if index == 0:
         midi_player.cc_message(CHANNEL, HAMMOND_VOLUME_CC, state)
     elif index == 1:
         midi_player.cc_message(CHANNEL, HAMMOND_LESLIE_SPEED_CC, state)
         if state > 64 - 10 and state < 64 + 10:
-            midi_player.cc_message(CHANNEL, HAMMOND_LESLIE_BREAK_CC, state)
+            if not break_state:
+               break_state = True
+            midi_player.cc_message(CHANNEL, HAMMOND_LESLIE_BREAK_CC, 127)
+        elif state <= 64 - 10 and state >= 64 + 10:
+            if break_state:
+               break_state = False
+            midi_player.cc_message(CHANNEL, HAMMOND_LESLIE_BREAK_CC, 0)
 
 
 def init():
