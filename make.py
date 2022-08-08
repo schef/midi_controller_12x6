@@ -128,6 +128,27 @@ def sync():
         sys.exit(1)
 
 
+@app.command()
+def rm_all():
+    files = glob.glob("./src/*.py")
+    interaction = {"[sudo]": get_root_password()}
+    cmd = "sudo mount %s %s" % (options["MOUNT_DEVICE"], options["MOUNT_PATH"])
+    ret = run_bash_cmd(cmd, interaction=interaction, return_code=True, return_lines=False)
+    if ret != 0:
+        print("Something went wrong, exiting!")
+        sys.exit(1)
+    cmd = "sudo rm -rv %s/*" % (options["MOUNT_PATH"])
+    ret = run_bash_cmd(cmd, interaction=interaction, return_code=True, return_lines=False)
+    if ret != 0:
+        print("Something went wrong, exiting!")
+        sys.exit(1)
+    cmd = "sudo umount %s" % (options["MOUNT_PATH"])
+    ret = run_bash_cmd(cmd, interaction=interaction, return_code=True, return_lines=False)
+    if ret != 0:
+        print("Something went wrong, exiting!")
+        sys.exit(1)
+
+
 @app.callback()
 def main(verbose: bool = True, device_path: str = "", mount_device: str = ""):
     global options
