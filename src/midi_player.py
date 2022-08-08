@@ -1,5 +1,6 @@
 import common
 
+
 def note_on(channel, midi_index, velocity):
     print("note_on", channel, midi_index, velocity)
     common.send_usb_midi_message([channel + 0x90 - 1, midi_index, velocity])

@@ -9,12 +9,11 @@ import typer
 import glob
 from getpass import getpass
 
-
 options = {
     "DEVICE_SERIAL": "/dev/ttyACM0",
     "BUFFER_SIZE": 512,
     "VERBOSE": False,
-    "MOUNT_DEVICE": "/dev/sdc1",
+    "MOUNT_DEVICE": "/dev/sdb1",
     "MOUNT_PATH": "/mnt/usb",
 }
 
@@ -77,7 +76,7 @@ def run_bash_cmd(cmd, echo=False, interaction={}, return_lines=True, return_code
                             print("PMT:", line)
                         sleep(1)
                         os.write(master_fd, ("%s" %
-                                 (interaction[key])).encode())
+                                             (interaction[key])).encode())
                         os.write(master_fd, "\r\n".encode())
                         line = ""
         if line:
@@ -104,43 +103,12 @@ app = typer.Typer(help="Awesome CLI micropython.")
 
 @app.command()
 def repl():
-    cmd = "%s repl" % (get_base_command())
-    os.system(cmd)
-
-
-@app.command()
-def repl_circuitpython():
     cmd = "tio %s" % (options["DEVICE_SERIAL"])
     os.system(cmd)
 
 
 @app.command()
-def shell():
-    cmd = "%s" % (get_base_command())
-    os.system(cmd)
-
-
-@app.command()
-def flash():
-    cmd = "%s rsync ./src /pyboard/" % (get_base_command())
-    lines = run_bash_cmd(cmd)
-    for line in lines:
-        if "timed out or error" in line:
-            print("%sERROR:%s while flashing" % (Base.WARNING, Base.END))
-
-
-@app.command()
-def flash_force():
-    files = glob.glob("./src/*.py")
-    cmd = "%s cp %s /pyboard/" % (get_base_command(), " ".join(files))
-    lines = run_bash_cmd(cmd)
-    for line in lines:
-        if "timed out or error" in line:
-            print("%sERROR:%s while flashing" % (Base.WARNING, Base.END))
-
-
-@app.command()
-def flash_circuitpython():
+def sync():
     files = glob.glob("./src/*.py")
     interaction = {"[sudo]": get_root_password()}
     cmd = "sudo mount %s %s" % (options["MOUNT_DEVICE"], options["MOUNT_PATH"])
