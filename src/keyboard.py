@@ -49,14 +49,14 @@ def on_pot_change(index, state):
         midi_player.cc_message(CHANNEL, HAMMOND_VOLUME_CC, state)
     elif index == 1:
         midi_player.cc_message(CHANNEL, HAMMOND_LESLIE_SPEED_CC, state)
-        if state > 64 - 10 and state < 64 + 10:
+        if state > 40 and state < 80:
             if not break_state:
-               break_state = True
-            midi_player.cc_message(CHANNEL, HAMMOND_LESLIE_BREAK_CC, 127)
-        elif state <= 64 - 10 and state >= 64 + 10:
+              break_state = True
+              midi_player.cc_message(CHANNEL, HAMMOND_LESLIE_BREAK_CC, 127)
+        else:
             if break_state:
-               break_state = False
-            midi_player.cc_message(CHANNEL, HAMMOND_LESLIE_BREAK_CC, 0)
+              break_state = False
+              midi_player.cc_message(CHANNEL, HAMMOND_LESLIE_BREAK_CC, 0)
 
 
 def init():
