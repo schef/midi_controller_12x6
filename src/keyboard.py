@@ -3,8 +3,8 @@ import midi_player
 import common
 
 CHANNEL = 1
-HAMMOND_VOLUME_CC = 35
-HAMMOND_EXPRESSION_CC = 2
+HAMMOND_VOLUME_CC = 7
+HAMMOND_EXPRESSION_CC = 11
 HAMMOND_LESLIE_SPEED_CC = 1
 HAMMOND_LESLIE_BREAK_CC = 93
 
@@ -36,11 +36,15 @@ def on_button_change(select_index, data_index, state):
             if data_index == 5:
                 if program_change_index > 0:
                     program_change_index -= 1
-                midi_player.program_change(CHANNEL, program_change_index)
+                #midi_player.program_change(CHANNEL, program_change_index)
+                midi_player.note_on(CHANNEL, program_change_index + 24, 100)
+                midi_player.note_off(CHANNEL, program_change_index + 24)
             elif data_index == 6:
                 if program_change_index < 3:
                     program_change_index += 1
-                midi_player.program_change(CHANNEL, program_change_index)
+                #midi_player.program_change(CHANNEL, program_change_index)
+                midi_player.note_on(CHANNEL, program_change_index + 24, 100)
+                midi_player.note_off(CHANNEL, program_change_index + 24)
 
 
 def on_pot_change(index, state):
@@ -49,7 +53,7 @@ def on_pot_change(index, state):
         midi_player.cc_message(CHANNEL, HAMMOND_VOLUME_CC, state)
     elif index == 1:
         midi_player.cc_message(CHANNEL, HAMMOND_LESLIE_SPEED_CC, state)
-        if state > 40 and state < 80:
+        if state > 30 and state < 90:
             if not break_state:
               break_state = True
               midi_player.cc_message(CHANNEL, HAMMOND_LESLIE_BREAK_CC, 127)
