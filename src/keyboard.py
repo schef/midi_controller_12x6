@@ -12,6 +12,8 @@ break_state = False
 
 drawbar_preset_index = 0
 DRAWBAR_PRESETS = [
+    [4, 4, 0, 0, 0, 0, 0, 0, 0],
+    [6, 6, 0, 0, 0, 0, 0, 0, 0],
     [8, 8, 0, 0, 0, 0, 0, 0, 0],
     [8, 8, 1, 1, 1, 0, 0, 0, 0],
     [8, 8, 2, 2, 2, 0, 0, 0, 0],
@@ -56,11 +58,11 @@ def on_button_change(select_index, data_index, state):
     if midi_index != -1:
         if state:
             midi_player.note_on(CHANNEL, midi_index, 100)
-            if bass_enabled:
+            if bass_enabled and midi_index < 65:
                 midi_player.note_on(CHANNEL + 2, midi_index - 12, 100)
         else:
             midi_player.note_off(CHANNEL, midi_index)
-            if bass_enabled:
+            if bass_enabled and midi_index < 65:
                 midi_player.note_off(CHANNEL + 2, midi_index - 12)
     else:
         if state:
