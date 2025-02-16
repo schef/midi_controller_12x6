@@ -15,11 +15,11 @@ UPPER_DRAWBAR_PRESETS = [
     [8, 0, 0, 0, 0, 0, 0, 0, 0],
     [8, 8, 0, 0, 0, 0, 0, 0, 0],
     [8, 8, 6, 0, 0, 0, 0, 0, 0],
-    [8, 8, 6, 2, 2, 0, 0, 0, 0],
+    [8, 8, 6, 4, 4, 0, 0, 0, 0],
     [8, 8, 6, 4, 4, 2, 2, 0, 0],
-    [8, 8, 6, 6, 5, 4, 2, 0, 0],
-    [8, 8, 6, 3, 3, 2, 2, 1, 1],
-    [8, 8, 6, 3, 3, 3, 3, 2, 2],
+    [8, 8, 6, 6, 6, 4, 2, 0, 0],
+    [8, 8, 6, 6, 6, 4, 2, 2, 2],
+    [8, 8, 6, 6, 6, 4, 2, 2, 2],
 ]
 
 LOWER_DRAWBAR_PRESETS = [
@@ -88,7 +88,7 @@ def get_button_midi_num_and_channel(select_index, data_index):
         midi_index = 41 + select_index * 5 + data_index * 1 #
         channel = SECOND_CHANNEL
     # highKeys select_index[0-6], data_index[7-11], lowest pitch f-65
-    elif data_index > 6:
+    elif data_index > 6 and select_index < 5:
         midi_index = 65 - 7 + select_index * 5 + data_index * 1
         channel = FIRST_CHANNEL
     return midi_index, channel
@@ -157,11 +157,11 @@ def on_button_change(select_index, data_index, state):
         elif data_index in [1, 2, 3, 4]:
             index = data_index - 1
             value = 5 - select_index
-            set_drawbar(index, value, SECOND_CHANNEL)
+            set_drawbar(index, value, FIRST_CHANNEL)
         elif data_index in [7, 8, 9, 10, 11]:
             index = data_index - 3
             value = 5 - select_index
-            set_drawbar(index, value, SECOND_CHANNEL)
+            set_drawbar(index, value, FIRST_CHANNEL)
 
 
 def on_pot_change(index, state):
