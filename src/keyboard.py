@@ -35,6 +35,10 @@ DRAWBAR_MIDI_CC = [70, 71, 72, 73, 74, 75, 76, 77, 78]
 fn_key_pressed = False
 bass_enabled = False
 
+class LeslieSpeedControl:
+    STOP = 60
+    SLOW = 0
+    FAST = 127
 
 def set_drawbar(index, value, channel):
     value = 120 - value * 16
@@ -61,6 +65,9 @@ def set_soft_percussion(state):
 
 def set_vibrato_routing(num):
     midi_player.cc_message(channel=FIRST_CHANNEL, cc=92, value=num)
+
+def set_leslie_speed(state):
+    midi_player.cc_message(FIRST_CHANNEL, HAMMOND_LESLIE_SPEED_CC, state)
 
 # s:d #############################################
 # 5:0 5:1 5:2 5:3 5:4 5:5 5:6 5:7 5:7 5:9 5:15 5:11
@@ -104,8 +111,16 @@ def on_button_change(select_index, data_index, state):
                     midi_player.note_off(BASS_CHANNEL, midi_index - 12)
         else:
             if state:
+                if select_index == 5 and data_index == 1:
+                    set_vibrato(False)
+                elif select_index == 5 and data_index == 2:
+                    set_vibrato(True)
+                elif select_index == 5 and data_index == 3:
+                    set_percussion(False)
+                elif select_index == 5 and data_index == 4:
+                    set_percussion(True)
                 # drawbar preset decrease
-                if select_index == 5 and data_index == 5:
+                elif select_index == 5 and data_index == 5:
                     if drawbar_preset_index > 0:
                         drawbar_preset_index -= 1
                     set_drawbar_preset(UPPER_DRAWBAR_PRESETS[drawbar_preset_index], FIRST_CHANNEL)
@@ -114,14 +129,12 @@ def on_button_change(select_index, data_index, state):
                     if drawbar_preset_index < len(UPPER_DRAWBAR_PRESETS) - 1:
                         drawbar_preset_index += 1
                     set_drawbar_preset(UPPER_DRAWBAR_PRESETS[drawbar_preset_index], FIRST_CHANNEL)
-                elif select_index == 5 and data_index == 1:
-                    set_vibrato(False)
-                elif select_index == 5 and data_index == 2:
-                    set_vibrato(True)
-                elif select_index == 5 and data_index == 3:
-                    set_percussion(False)
-                elif select_index == 5 and data_index == 4:
-                    set_percussion(True)
+                elif select_index == 5 and data_index == 9:
+                    set_leslie_speed(LeslieSpeedControl.SLOW)
+                elif select_index == 5 and data_index == 10:
+                    set_leslie_speed(LeslieSpeedControl.STOP)
+                elif select_index == 5 and data_index == 11:
+                    set_leslie_speed(LeslieSpeedControl.FAST)
     else:
         # turn off playing notes
         midi_index, channel = get_button_midi_num_and_channel(select_index, data_index)
@@ -144,26 +157,26 @@ def on_button_change(select_index, data_index, state):
         elif data_index in [1, 2, 3, 4]:
             index = data_index - 1
             value = 5 - select_index
-            set_drawbar(index, value)
+            set_drawbar(index, value, SECOND_CHANNEL)
         elif data_index in [7, 8, 9, 10, 11]:
             index = data_index - 3
             value = 5 - select_index
-            set_drawbar(index, value)
+            set_drawbar(index, value, SECOND_CHANNEL)
 
 
 def on_pot_change(index, state):
     global break_state
     if index == 0:
         midi_player.cc_message(FIRST_CHANNEL, HAMMOND_VOLUME_CC, state)
-    elif index == 1:
-        if state < 42:
-            value = 0
-        elif state > 84:
-            value = 127
-        else:
-            value = 64
-        midi_player.cc_message(FIRST_CHANNEL, HAMMOND_LESLIE_SPEED_CC, value)
-        midi_player.cc_message(FIRST_CHANNEL, POT_STATE_CC, state)
+    #elif index == 1:
+    #    if state < 42:
+    #        value = 0
+    #    elif state > 84:
+    #        value = 127
+    #    else:
+    #        value = 64
+    #    midi_player.cc_message(FIRST_CHANNEL, HAMMOND_LESLIE_SPEED_CC, value)
+    #    #midi_player.cc_message(FIRST_CHANNEL, POT_STATE_CC, state)
 
 
 def init():
