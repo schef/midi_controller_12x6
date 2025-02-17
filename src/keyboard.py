@@ -111,13 +111,13 @@ def on_button_change(select_index, data_index, state):
                     midi_player.note_off(BASS_CHANNEL, midi_index - 12)
         else:
             if state:
-                if select_index == 5 and data_index == 1:
+                if select_index == 5 and data_index == 7:
                     set_vibrato(False)
-                elif select_index == 5 and data_index == 2:
+                elif select_index == 5 and data_index == 8:
                     set_vibrato(True)
-                elif select_index == 5 and data_index == 3:
+                elif select_index == 5 and data_index == 9:
                     set_percussion(False)
-                elif select_index == 5 and data_index == 4:
+                elif select_index == 5 and data_index == 10:
                     set_percussion(True)
                 # drawbar preset decrease
                 elif select_index == 5 and data_index == 5:
@@ -129,11 +129,11 @@ def on_button_change(select_index, data_index, state):
                     if drawbar_preset_index < len(UPPER_DRAWBAR_PRESETS) - 1:
                         drawbar_preset_index += 1
                     set_drawbar_preset(UPPER_DRAWBAR_PRESETS[drawbar_preset_index], FIRST_CHANNEL)
-                elif select_index == 5 and data_index == 9:
+                elif select_index == 5 and data_index == 1:
                     set_leslie_speed(LeslieSpeedControl.SLOW)
-                elif select_index == 5 and data_index == 10:
+                elif select_index == 5 and data_index == 2:
                     set_leslie_speed(LeslieSpeedControl.STOP)
-                elif select_index == 5 and data_index == 11:
+                elif select_index == 5 and data_index == 3:
                     set_leslie_speed(LeslieSpeedControl.FAST)
     else:
         # turn off playing notes
@@ -166,17 +166,15 @@ def on_button_change(select_index, data_index, state):
 
 def on_pot_change(index, state):
     global break_state
-    if index == 0:
+    if index == 1:
         midi_player.cc_message(FIRST_CHANNEL, HAMMOND_VOLUME_CC, state)
-    #elif index == 1:
-    #    if state < 42:
-    #        value = 0
-    #    elif state > 84:
-    #        value = 127
-    #    else:
-    #        value = 64
-    #    midi_player.cc_message(FIRST_CHANNEL, HAMMOND_LESLIE_SPEED_CC, value)
-    #    #midi_player.cc_message(FIRST_CHANNEL, POT_STATE_CC, state)
+    elif index == 0:
+        if state < 42:
+            set_leslie_speed(LeslieSpeedControl.SLOW)
+        elif state > 84:
+            set_leslie_speed(LeslieSpeedControl.FAST)
+        else:
+            set_leslie_speed(LeslieSpeedControl.STOP)
 
 
 def init():
