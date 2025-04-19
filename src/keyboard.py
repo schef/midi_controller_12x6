@@ -34,6 +34,7 @@ DRAWBAR_MIDI_CC = [70, 71, 72, 73, 74, 75, 76, 77, 78]
 
 fn_key_pressed = False
 bass_enabled = False
+drawbar_percent = 100
 
 class LeslieSpeedControl:
     STOP = 60
@@ -52,6 +53,7 @@ def set_drawbar(index, value, channel):
 def set_drawbar_preset(preset, channel):
     for i in range(len(preset)):
         value = preset[i]
+        value = round(value * drawbar_percent)
         set_drawbar(i, value, channel)
 
 def set_vibrato(state):
@@ -93,7 +95,6 @@ def get_button_midi_num_and_channel(select_index, data_index):
         channel = FIRST_CHANNEL
     return midi_index, channel
 
-
 def on_button_change(select_index, data_index, state):
     global drawbar_preset_index, bass_enabled, fn_key_pressed
     if select_index == 5 and data_index == 0:
@@ -103,22 +104,23 @@ def on_button_change(select_index, data_index, state):
         if midi_index != -1:
             if state:
                 midi_player.note_on(channel, midi_index, 100)
-                if bass_enabled and midi_index < 65:
+                if bass_enabled and midi_index <= 60:
                     midi_player.note_on(BASS_CHANNEL, midi_index - 12, 100)
             else:
                 midi_player.note_off(channel, midi_index)
-                if bass_enabled and midi_index < 65:
+                if bass_enabled and midi_index <= 60:
                     midi_player.note_off(BASS_CHANNEL, midi_index - 12)
         else:
             if state:
-                if select_index == 5 and data_index == 7:
+                if select_index == 5 and data_index == 1:
                     set_vibrato(False)
-                elif select_index == 5 and data_index == 8:
+                elif select_index == 5 and data_index == 2:
                     set_vibrato(True)
-                elif select_index == 5 and data_index == 9:
-                    set_percussion(False)
                 elif select_index == 5 and data_index == 10:
+                    set_percussion(False)
+                elif select_index == 5 and data_index == 11:
                     set_percussion(True)
+
                 # drawbar preset decrease
                 elif select_index == 5 and data_index == 5:
                     if drawbar_preset_index > 0:
@@ -129,12 +131,6 @@ def on_button_change(select_index, data_index, state):
                     if drawbar_preset_index < len(UPPER_DRAWBAR_PRESETS) - 1:
                         drawbar_preset_index += 1
                     set_drawbar_preset(UPPER_DRAWBAR_PRESETS[drawbar_preset_index], FIRST_CHANNEL)
-                elif select_index == 5 and data_index == 1:
-                    set_leslie_speed(LeslieSpeedControl.SLOW)
-                elif select_index == 5 and data_index == 2:
-                    set_leslie_speed(LeslieSpeedControl.STOP)
-                elif select_index == 5 and data_index == 3:
-                    set_leslie_speed(LeslieSpeedControl.FAST)
     else:
         # turn off playing notes
         midi_index, channel = get_button_midi_num_and_channel(select_index, data_index)
@@ -163,24 +159,27 @@ def on_button_change(select_index, data_index, state):
             value = 5 - select_index
             set_drawbar(index, value, FIRST_CHANNEL)
 
-
 def on_pot_change(index, state):
-    global break_state
+    global break_state, drawbar_percent
+    # POT 0, leslie, 127-0
+    # POT 1, volume, 127-0
+    # POT 2, ?, 127-0
     if index == 1:
-        midi_player.cc_message(FIRST_CHANNEL, HAMMOND_VOLUME_CC, state)
+        midi_player.cc_message(FIRST_CHANNEL, HAMMOND_VOLUME_CC, 127 - state)
     elif index == 0:
-        if state < 42:
+        if state < 25:
             set_leslie_speed(LeslieSpeedControl.SLOW)
-        elif state > 84:
+        elif state > 100:
             set_leslie_speed(LeslieSpeedControl.FAST)
         else:
             set_leslie_speed(LeslieSpeedControl.STOP)
-
+    elif index == 2:
+        drawbar_percent = (127 - state) / 127
+        set_drawbar_preset(UPPER_DRAWBAR_PRESETS[drawbar_preset_index], FIRST_CHANNEL)
 
 def init():
     peripherals.register_on_button_change_cb(on_button_change)
     peripherals.register_on_pot_change_cb(on_pot_change)
-
 
 def loop():
     pass
